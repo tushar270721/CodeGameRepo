@@ -62,7 +62,7 @@ components:
           description: Links to related resources
 
 paths:
-  /{organization}/_apis/wit/workitems/{id}:
+  /{organization}/{project}/_apis/wit/workitems/{id}:
     get:
       operationId: getWorkItem
       summary: Get a work item by ID
@@ -73,13 +73,19 @@ paths:
           required: true
           schema:
             type: string
-          description: Azure DevOps organization name
+          description: Azure DevOps organization name (e.g., enableon)
+        - name: project
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name (e.g., ART - New SaaS)
         - name: id
           in: path
           required: true
           schema:
             type: integer
-          description: Work item ID (e.g., bug number)
+          description: Work item ID (e.g., 791842)
         - name: $expand
           in: query
           required: false
@@ -93,7 +99,7 @@ paths:
           schema:
             type: string
             default: "7.1"
-          description: API version
+          description: API version (7.1 recommended)
       security:
         - BasicAuth: []
       responses:
@@ -104,9 +110,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/WorkItem'
         '401':
-          description: Unauthorized - Invalid credentials
+          description: Unauthorized - Invalid credentials or PAT expired
         '404':
-          description: Work item not found
+          description: Work item not found - verify organization, project, and ID
 
   /{organization}/_apis/wit/workitems:
     get:
