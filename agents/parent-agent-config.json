@@ -1,0 +1,160 @@
+{
+  "agentName": "codegame-parent-agent",
+  "version": "1.0.0",
+  "type": "generic-prompt-agent",
+  "baseAgentVersion": "0.54.0",
+  "maintainer": "CodeGame Development Team",
+  
+  "design": {
+    "systemMessage": "You are the CodeGame Parent Agent - an orchestrator for managing Azure DevOps ticket processing workflows.\n\nYour responsibilities:\n1. Receive Azure DevOps tickets tagged with 'agent-ready'\n2. Delegate tasks to appropriate child agents:\n   - azdo-reader-v2: Read and validate ticket details\n   - code-analyzer: Analyze code impact and repository\n   - fix-generator: Generate code fixes\n   - pr-creator: Create pull requests\n   - workflow-orchestrator: Manage workflow steps\n3. Coordinate between agents\n4. Track workflow status\n5. Provide consolidated reports\n\nWorkflow Steps:\n1. Listen for 'agent-ready' tagged work items\n2. Read work item details via azdo-reader-v2\n3. Analyze code impact via code-analyzer\n4. Ask for clarification if needed\n5. Generate fixes via fix-generator\n6. Create PR via pr-creator\n7. Link PR to ticket\n8. Wait for human review and merge\n9. Update ticket status\n\nAlways maintain structured communication and provide status updates.",
+    
+    "userPromptTemplate": "[command]",
+    
+    "delegateToOtherAgents": true,
+    "useExternalAPIs": true,
+    
+    "childAgents": [
+      {
+        "agentName": "azdo-reader-v2",
+        "version": "1.0.0",
+        "description": "Reads and validates Azure DevOps work items",
+        "tasks": ["read_ticket", "validate_content", "extract_details"]
+      },
+      {
+        "agentName": "code-analyzer",
+        "version": "1.0.0",
+        "description": "Analyzes code impact and repository structure",
+        "tasks": ["analyze_code", "read_repo", "identify_impact"]
+      },
+      {
+        "agentName": "fix-generator",
+        "version": "1.0.0",
+        "description": "Generates code fixes based on analysis",
+        "tasks": ["generate_fix", "create_branch", "commit_changes"]
+      },
+      {
+        "agentName": "pr-creator",
+        "version": "1.0.0",
+        "description": "Creates and manages pull requests",
+        "tasks": ["create_pr", "link_to_ticket", "request_review"]
+      }
+    ]
+  },
+  
+  "workflow": {
+    "name": "Azure DevOps Ticket Processing Workflow",
+    "version": "1.0.0",
+    "steps": [
+      {
+        "stepId": 1,
+        "name": "Listen for Agent-Ready Tickets",
+        "description": "Monitor Azure DevOps for tickets tagged with 'agent-ready'",
+        "agent": "parent",
+        "action": "monitor_tickets"
+      },
+      {
+        "stepId": 2,
+        "name": "Read Ticket Details",
+        "description": "Read and extract work item information",
+        "agent": "azdo-reader-v2",
+        "action": "read_work_item",
+        "input": "{workItemId}",
+        "timeout": 30000
+      },
+      {
+        "stepId": 3,
+        "name": "Validate Content",
+        "description": "Validate ticket content and ask for clarifications if needed",
+        "agent": "azdo-reader-v2",
+        "action": "validate_and_clarify"
+      },
+      {
+        "stepId": 4,
+        "name": "Analyze Code Impact",
+        "description": "Analyze affected code and repository structure",
+        "agent": "code-analyzer",
+        "action": "analyze_impact",
+        "input": "{ticketDetails}"
+      },
+      {
+        "stepId": 5,
+        "name": "Generate Fix",
+        "description": "Generate code fixes based on analysis",
+        "agent": "fix-generator",
+        "action": "generate_fix",
+        "input": "{analysis}"
+      },
+      {
+        "stepId": 6,
+        "name": "Create Branch and Commit",
+        "description": "Create feature branch and commit changes",
+        "agent": "fix-generator",
+        "action": "create_branch_and_commit",
+        "input": "{fix}"
+      },
+      {
+        "stepId": 7,
+        "name": "Create Pull Request",
+        "description": "Create PR and link to work item",
+        "agent": "pr-creator",
+        "action": "create_pr",
+        "input": "{branchDetails}"
+      },
+      {
+        "stepId": 8,
+        "name": "Request Review",
+        "description": "Request human review on the PR",
+        "agent": "pr-creator",
+        "action": "request_review"
+      },
+      {
+        "stepId": 9,
+        "name": "Update Ticket Status",
+        "description": "Update work item with PR link and status",
+        "agent": "azdo-reader-v2",
+        "action": "update_work_item",
+        "input": "{prDetails}"
+      },
+      {
+        "stepId": 10,
+        "name": "Wait for Approval",
+        "description": "Wait for human review and merge",
+        "agent": "parent",
+        "action": "wait_for_approval"
+      },
+      {
+        "stepId": 11,
+        "name": "Mark Complete",
+        "description": "Update ticket to completed status",
+        "agent": "azdo-reader-v2",
+        "action": "close_work_item"
+      }
+    ],
+    "errorHandling": {
+      "retryPolicy": "exponential-backoff",
+      "maxRetries": 3,
+      "fallbackAgent": "human_review"
+    }
+  },
+  
+  "configuration": {
+    "timeout": 300000,
+    "retryAttempts": 3,
+    "maxConcurrentChildren": 3,
+    "cachingEnabled": true,
+    "cacheDuration": 600
+  },
+  
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "command": {
+        "type": "string",
+        "enum": ["process_ticket", "start_workflow", "check_status", "list_pending"]
+      },
+      "workItemId": {
+        "type": "string"
+      }
+    }
+  }
+}

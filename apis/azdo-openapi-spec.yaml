@@ -1,0 +1,316 @@
+openapi: 3.0.0
+info:
+  title: Azure DevOps Bug Reader API
+  description: API integration for reading and managing Azure DevOps work items and bugs
+  version: 1.0.0
+  contact:
+    name: CodeGame Development Team
+
+servers:
+  - url: https://dev.azure.com
+    description: Azure DevOps Server
+  - url: https://YOUR_ORGANIZATION.visualstudio.com
+    description: Your Organization Azure DevOps Instance
+
+components:
+  securitySchemes:
+    BasicAuth:
+      type: http
+      scheme: basic
+      description: Azure DevOps PAT (Personal Access Token) as username with empty password
+
+  schemas:
+    WorkItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Work item ID
+        title:
+          type: string
+          description: Work item title
+        description:
+          type: string
+          description: Work item description
+        state:
+          type: string
+          enum: [New, Active, Resolved, Closed, Removed]
+          description: Current state of the work item
+        workItemType:
+          type: string
+          description: Type of work item (Bug, Task, Feature, etc.)
+        assignedTo:
+          type: object
+          properties:
+            displayName:
+              type: string
+            uniqueName:
+              type: string
+        tags:
+          type: array
+          items:
+            type: string
+          description: Tags associated with the work item
+        priority:
+          type: integer
+          description: Priority level (1-4)
+        url:
+          type: string
+          description: Direct URL to the work item
+        _links:
+          type: object
+          description: Links to related resources
+
+paths:
+  /{organization}/_apis/wit/workitems/{id}:
+    get:
+      operationId: getWorkItem
+      summary: Get a work item by ID
+      description: Retrieves details of a specific work item from Azure DevOps
+      parameters:
+        - name: organization
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Azure DevOps organization name
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Work item ID (e.g., bug number)
+        - name: $expand
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [None, Relations, Fields, All]
+          description: Expand related data
+        - name: api-version
+          in: query
+          required: true
+          schema:
+            type: string
+            default: "7.1"
+          description: API version
+      security:
+        - BasicAuth: []
+      responses:
+        '200':
+          description: Successfully retrieved work item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkItem'
+        '401':
+          description: Unauthorized - Invalid credentials
+        '404':
+          description: Work item not found
+
+  /{organization}/_apis/wit/workitems:
+    get:
+      operationId: searchWorkItems
+      summary: Search work items by query
+      description: Search for work items using WIQL (Work Item Query Language)
+      parameters:
+        - name: organization
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Azure DevOps organization name
+        - name: wiql
+          in: query
+          required: false
+          schema:
+            type: string
+          description: WIQL query to find work items
+          example: "SELECT [System.Id] FROM workitems WHERE [System.State] <> 'Closed' AND [System.Tags] CONTAINS 'agent-ready'"
+        - name: api-version
+          in: query
+          required: true
+          schema:
+            type: string
+            default: "7.1"
+          description: API version
+      security:
+        - BasicAuth: []
+      responses:
+        '200':
+          description: Successfully retrieved work items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  queryType:
+                    type: string
+                  workItems:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorkItem'
+
+  /{organization}/{project}/_apis/git/repositories:
+    get:
+      operationId: getRepositories
+      summary: Get all repositories in a project
+      description: Retrieves list of Git repositories in the project
+      parameters:
+        - name: organization
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Azure DevOps organization name
+        - name: project
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: api-version
+          in: query
+          required: true
+          schema:
+            type: string
+            default: "7.1"
+          description: API version
+      security:
+        - BasicAuth: []
+      responses:
+        '200':
+          description: Successfully retrieved repositories
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                  value:
+                    type: array
+                    items:
+                      type: object
+
+  /{organization}/{project}/_apis/git/repositories/{repositoryId}/commits:
+    get:
+      operationId: getCommits
+      summary: Get commits from a repository
+      description: Retrieves commit history from a Git repository
+      parameters:
+        - name: organization
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: project
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: repositoryId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Repository ID or name
+        - name: api-version
+          in: query
+          required: true
+          schema:
+            type: string
+            default: "7.1"
+      security:
+        - BasicAuth: []
+      responses:
+        '200':
+          description: Successfully retrieved commits
+
+  /{organization}/{project}/_apis/build/builds:
+    get:
+      operationId: getBuilds
+      summary: Get build logs
+      description: Retrieves build information and logs
+      parameters:
+        - name: organization
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: project
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: api-version
+          in: query
+          required: true
+          schema:
+            type: string
+            default: "7.1"
+      security:
+        - BasicAuth: []
+      responses:
+        '200':
+          description: Successfully retrieved builds
+
+  /{organization}/{project}/_apis/sourceProviders/git/pullRequests/create:
+    post:
+      operationId: createPullRequest
+      summary: Create a pull request
+      description: Creates a new pull request in a Git repository
+      parameters:
+        - name: organization
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: project
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: api-version
+          in: query
+          required: true
+          schema:
+            type: string
+            default: "7.1"
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sourceRefName:
+                  type: string
+                  description: Source branch
+                targetRefName:
+                  type: string
+                  description: Target branch
+                title:
+                  type: string
+                  description: PR title
+                description:
+                  type: string
+                  description: PR description
+      responses:
+        '201':
+          description: Pull request created successfully
+
+security:
+  - BasicAuth: []
+
+tags:
+  - name: Work Items
+    description: Operations related to work items
+  - name: Repositories
+    description: Operations related to Git repositories
+  - name: Builds
+    description: Operations related to builds and logs
+  - name: Pull Requests
+    description: Operations related to pull requests
