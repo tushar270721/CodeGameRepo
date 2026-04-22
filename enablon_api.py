@@ -1,13 +1,42 @@
 import requests
 from requests.auth import HTTPBasicAuth
+import os
+from pathlib import Path
 
 # Auth API Configuration
 AUTH_ENDPOINT = "https://nexus-az.dev.enablon.io/authentication/connect/token"
 DATAPLANE_ENDPOINT = "https://nexus-az.dev.enablon.io/ehs/api/dataplane/tenant-events"
 
-# Credentials
-CLIENT_ID = "2c65d3b5-3e24-4187-a30e-e284946d0900"
-CLIENT_SECRET = "MBBW9rPJrvdfSOwhH4LeAOvPOASu4bitnorCT7eOmCfwBtBLyF2ydKAwpvfdlVYuCC7PXoRaAzUSrpCKCDKJb5KzeRiEZnNUnmNC349ArdcTfra4qD2ya719O0iHxqVQ3mm8xqvfVjmipoOt9FPYX2n5hE2Z9XL6G3YxCimD7g"
+# Credentials - Load from environment variables
+CLIENT_ID = os.getenv('ENABLON_CLIENT_ID')
+CLIENT_SECRET = os.getenv('ENABLON_CLIENT_SECRET')
+
+# Try to load from .env file if not found in environment
+if not CLIENT_ID or not CLIENT_SECRET:
+    env_file = Path('.env')
+    if env_file.exists():
+        try:
+            from dotenv import load_dotenv
+            load_dotenv()
+            CLIENT_ID = os.getenv('ENABLON_CLIENT_ID')
+            CLIENT_SECRET = os.getenv('ENABLON_CLIENT_SECRET')
+        except ImportError:
+            # Parse .env manually if python-dotenv not installed
+            with open(env_file, 'r') as f:
+                for line in f:
+                    if line.startswith('ENABLON_CLIENT_ID='):
+                        CLIENT_ID = line.split('=', 1)[1].strip().strip('"').strip("'")
+                    elif line.startswith('ENABLON_CLIENT_SECRET='):
+                        CLIENT_SECRET = line.split('=', 1)[1].strip().strip('"').strip("'")
+
+# If still not found, use fallback values (for testing only)
+if not CLIENT_ID:
+    CLIENT_ID = "2c65d3b5-3e24-4187-a30e-e284946d0900"
+if not CLIENT_SECRET:
+    CLIENT_SECRET = ""
+    print("⚠️  Warning: ENABLON_CLIENT_SECRET not found")
+    print("   Set ENABLON_CLIENT_ID and ENABLON_CLIENT_SECRET environment variables or create .env file")
+
 SCOPE = "enablon-data"
 GRANT_TYPE = "client_credentials"
 AUDIENCE = "api"
