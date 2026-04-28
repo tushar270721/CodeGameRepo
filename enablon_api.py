@@ -148,18 +148,18 @@ if __name__ == "__main__":
     # Test Dataplane API
     print("\n📡 Testing Dataplane API...")
     try:
-        # Invalid payload (to test bug scenario)
+        # ✅ Valid payload from bug #791842 Implementation Notes
         payload = {
             "serviceName": "APPLICATIONSERVER",
-            "rootUrl": "invalid-url",  # ❌ Invalid URL
-            "aiServicesApiUrl": "",  # ❌ Empty
-            "navigationAssistantStatus": "INVALID",  # ❌ Wrong type (should be boolean)
+            "rootUrl": "https://nexus-az.dev.enablon.io/ehs",
+            "aiServicesApiUrl": "https://aiii11",
+            "navigationAssistantStatus": True,
             "aiConversationalInterfaceStatus": True
         }
         
         result = send_event(
             event_type="ServiceEntitled",
-            enablon_tenant_id="",  # ❌ Empty tenant ID
+            enablon_tenant_id="8f2fa0ad1cfd5a77aea03c0a48cf494e",
             payload=payload
         )
         
