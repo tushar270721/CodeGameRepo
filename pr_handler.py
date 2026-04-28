@@ -299,24 +299,62 @@ def push_and_create_pr(repo_path, repo_url, bug_id, bug_title, branch_name,
     
     handler = PRHandler(repo_path)
     
-    # Step 1: Stage files
-    print("1️⃣  Staging files...")
-    if not handler.git_add_files(files_changed):
+    # Auto-detect modified files using git
+    print("1️⃣  Detecting modified files...")
+    try:
+        os.chdir(repo_path)
+        result = subprocess.run(
+            ['git', 'diff', '--name-only', 'HEAD'],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+        modified_files = [f for f in result.stdout.strip().split('\n') if f]
+        
+        if not modified_files:
+            # Check for untracked files
+            result = subprocess.run(
+                ['git', 'ls-files', '--others', '--exclude-standard'],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            modified_files = [f for f in result.stdout.strip().split('\n') if f]
+        
+        if modified_files:
+            print(f"   Found {len(modified_files)} modified file(s):")
+            for f in modified_files:
+                print(f"     ✓ {f}")
+        else:
+            print(f"   No modified files detected (using provided: {len(files_changed)})")
+            modified_files = files_changed
+            
+    except Exception as e:
+        print(f"   ⚠️  Could not auto-detect files: {e}")
+        modified_files = files_changed
+    
+    # Step 2: Stage all modified files
+    print("\n2️⃣  Staging files...")
+    if modified_files:
+        if not handler.git_add_files(modified_files):
+            return None
+    else:
+        print("   ⚠️  No files to stage")
         return None
     
-    # Step 2: Commit changes
-    print("\n2️⃣  Committing changes...")
+    # Step 3: Commit changes
+    print("\n3️⃣  Committing changes...")
     if not handler.git_commit(bug_id, bug_title, commit_description):
         return None
     
-    # Step 3: Push to branch
-    print("\n3️⃣  Pushing to remote...")
+    # Step 4: Push to branch
+    print("\n4️⃣  Pushing to remote...")
     if not handler.git_push(branch_name):
         return None
     
-    # Step 4: Generate PR description
-    print("\n4️⃣  Generating PR description...")
-    changes_summary = f"Fixed validation issues in {len(files_changed)} file(s)."
+    # Step 5: Generate PR description
+    print("\n5️⃣  Generating PR description...")
+    changes_summary = f"Fixed validation issues in {len(modified_files)} file(s)."
     pr_description = handler.generate_pr_description(
         bug_id, 
         bug_title, 
@@ -324,14 +362,14 @@ def push_and_create_pr(repo_path, repo_url, bug_id, bug_title, branch_name,
         relevant_files
     )
     
-    # Step 5: Create PR locally
-    print("\n5️⃣  Preparing PR information...")
+    # Step 6: Create PR locally
+    print("\n6️⃣  Preparing PR information...")
     pr_title = f"fix: {bug_title} (#{bug_id})"
     if not handler.create_pr_locally(branch_name, pr_title, pr_description, bug_id):
         return None
     
-    # Step 6: Link to Azure DevOps
-    print("\n6️⃣  Linking to Azure DevOps...")
+    # Step 7: Link to Azure DevOps
+    print("\n7️⃣  Linking to Azure DevOps...")
     repo_name = repo_url.split('/')[-1].replace('.git', '')
     pr_url = f"https://github.com/{repo_url.split('/')[-2]}/{repo_name}/pull/new/{branch_name}"
     
@@ -340,23 +378,38 @@ def push_and_create_pr(repo_path, repo_url, bug_id, bug_title, branch_name,
     except Exception as e:
         print(f"⚠️  Could not link to Azure DevOps: {str(e)}")
     
-    # Step 7: Generate report
-    print("\n7️⃣  Generating report...")
+    # Step 8: Generate report
+    print("\n8️⃣  Generating report...")
     handler.generate_pr_report(bug_id, bug_title, repo_url, branch_name)
     
     return handler.pr_info
 
 
-# Example usage
+# Main execution
 if __name__ == "__main__":
     import sys
+    from azure_devops import get_bug
     
-    # Example parameters
-    repo_path = "./repos/sample-repo"
+    # Get bug_id from command line
+    if len(sys.argv) > 1:
+        bug_id = int(sys.argv[1])
+    else:
+        print("❌ Usage: python pr_handler.py <bug_id>")
+        print("   Example: python pr_handler.py 791842")
+        sys.exit(1)
+    
+    # Fetch bug details from Azure DevOps
+    try:
+        bug = get_bug(bug_id)
+        bug_title = bug['fields']['System.Title']
+    except Exception as e:
+        print(f"❌ Error fetching bug from Azure DevOps: {e}")
+        sys.exit(1)
+    
+    # Set up paths and parameters
+    repo_path = "./repos/CodeGameRepo"
     repo_url = "https://github.com/tushar270721/CodeGameRepo.git"
-    bug_id = 791842
-    bug_title = "Tenant Events API accepts invalid payload and does not validate input properly"
-    branch_name = "fix/bug-791842"
+    branch_name = f"fix/bug-{bug_id}"
     files_changed = ["src/EventProcessor.java", "src/validators/InputValidator.java"]
     relevant_files = ["src/EventProcessor.java", "src/validators/InputValidator.java", "test/EventProcessorTest.java"]
     
@@ -368,54 +421,30 @@ if __name__ == "__main__":
 - Added helper methods for validation
 - Updated error responses with detailed messages"""
     
-    # Check if repo path exists, if not, show example output
+    # Check if repo path exists
     if not os.path.exists(repo_path):
         print(f"\n{'='*70}")
-        print(f"📤 Step 6: Push Changes & Create PR (EXAMPLE)")
+        print(f"❌ Error: Repository not found at {repo_path}")
         print(f"{'='*70}\n")
-        print(f"ℹ️  Repository path does not exist: {repo_path}")
-        print(f"    When using with real repository, the workflow will:\n")
-        
-        handler = PRHandler(repo_path)
-        
-        # Create mock PR info
-        handler.pr_info = {
-            'branch': branch_name,
-            'title': f"fix: {bug_title} (#{bug_id})",
-            'commit': 'a1b2c3d',
-            'message': f"fix(#{bug_id}): {bug_title}",
-            'files': files_changed,
-            'bug_id': bug_id,
-            'created_at': datetime.now().isoformat()
-        }
-        
-        # Show example output
-        changes_summary = f"Fixed validation issues in {len(files_changed)} file(s)."
-        pr_description = handler.generate_pr_description(
-            bug_id, 
-            bug_title, 
-            changes_summary,
-            relevant_files
-        )
-        
-        handler.pr_info['description'] = pr_description
-        
-        # Generate report
-        handler.generate_pr_report(bug_id, bug_title, repo_url, branch_name)
-        
-        print(f"\n✅ Example workflow complete!")
-    else:
-        # Execute PR workflow with real repository
-        pr_info = push_and_create_pr(
-            repo_path,
-            repo_url,
-            bug_id,
-            bug_title,
-            branch_name,
-            files_changed,
-            relevant_files,
-            commit_description
-        )
-        
-        if pr_info:
-            print(f"\n✅ Workflow complete!")
+        print(f"Please run workflow_step3.py first to clone the repository:")
+        print(f"  python workflow_step3.py {bug_id} {repo_url}")
+        sys.exit(1)
+    
+    # Execute PR workflow with real repository
+    print(f"\n{'='*70}")
+    print(f"📤 Step 6: Push Changes & Create PR")
+    print(f"{'='*70}\n")
+    
+    pr_info = push_and_create_pr(
+        repo_path,
+        repo_url,
+        bug_id,
+        bug_title,
+        branch_name,
+        files_changed,
+        relevant_files,
+        commit_description
+    )
+    
+    if pr_info:
+        print(f"\n✅ Workflow complete!")
