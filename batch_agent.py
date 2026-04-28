@@ -199,52 +199,19 @@ def process_bug(bug_id):
         print(f"🧠 Issue Type: {issue}")
         print(f"💡 Fix Suggestion:\n{fix}")
         
-        # Check for existing implementation comments
-        print(f"\n📋 Checking for implementation code in comments...")
-        impl_comments = get_implementation_comments(bug_id)
-        
-        # Also check ReproSteps field
-        print(f"📋 Checking ReproSteps field...")
+        # ONLY check ReproSteps field for official implementation code
+        # (Ignore code found in regular comments as it may be outdated)
+        print(f"📋 Checking ReproSteps field for implementation...")
         repro_payloads = extract_json_from_text(repro_steps) if repro_steps else []
         
         if repro_payloads:
-            print(f"   Found {len(repro_payloads)} JSON object(s) in ReproSteps")
+            print(f"   ✅ Found {len(repro_payloads)} JSON object(s) in ReproSteps")
+        else:
+            print(f"   ℹ️  No implementation code found in ReproSteps")
         
         found_implementation = False
         
-        if impl_comments and impl_comments.get("found"):
-            print(f"✅ Found implementation code in comments!")
-            found_implementation = True
-            
-            payloads = impl_comments.get("payloads", [])
-            for idx, payload in enumerate(payloads, 1):
-                print(f"\n🔎 Validating payload {idx}...")
-                
-                is_valid, validation_msg = validate_implementation(payload, issue)
-                
-                if is_valid:
-                    validation_comment = f"""🤖 Fab Agent Validation: ✅ PASS
-
-Implementation validated successfully!
-
-{validation_msg}
-
-Payload structure is correct and all required fields are present.
-✨ Ready for testing and deployment."""
-                else:
-                    validation_comment = f"""🤖 Fab Agent Validation: ⚠️ ISSUES FOUND
-
-The implementation has the following issues:
-
-{validation_msg}
-
-Please address these before merging."""
-                
-                print(f"📝 Posting validation comment...")
-                add_comment(bug_id, validation_comment)
-                print(f"✅ Validation comment posted for payload {idx}")
-        
-        elif repro_payloads:
+        if repro_payloads:
             print(f"✅ Found implementation code in ReproSteps!")
             found_implementation = True
             
