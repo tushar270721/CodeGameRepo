@@ -299,24 +299,62 @@ def push_and_create_pr(repo_path, repo_url, bug_id, bug_title, branch_name,
     
     handler = PRHandler(repo_path)
     
-    # Step 1: Stage files
-    print("1️⃣  Staging files...")
-    if not handler.git_add_files(files_changed):
+    # Auto-detect modified files using git
+    print("1️⃣  Detecting modified files...")
+    try:
+        os.chdir(repo_path)
+        result = subprocess.run(
+            ['git', 'diff', '--name-only', 'HEAD'],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+        modified_files = [f for f in result.stdout.strip().split('\n') if f]
+        
+        if not modified_files:
+            # Check for untracked files
+            result = subprocess.run(
+                ['git', 'ls-files', '--others', '--exclude-standard'],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            modified_files = [f for f in result.stdout.strip().split('\n') if f]
+        
+        if modified_files:
+            print(f"   Found {len(modified_files)} modified file(s):")
+            for f in modified_files:
+                print(f"     ✓ {f}")
+        else:
+            print(f"   No modified files detected (using provided: {len(files_changed)})")
+            modified_files = files_changed
+            
+    except Exception as e:
+        print(f"   ⚠️  Could not auto-detect files: {e}")
+        modified_files = files_changed
+    
+    # Step 2: Stage all modified files
+    print("\n2️⃣  Staging files...")
+    if modified_files:
+        if not handler.git_add_files(modified_files):
+            return None
+    else:
+        print("   ⚠️  No files to stage")
         return None
     
-    # Step 2: Commit changes
-    print("\n2️⃣  Committing changes...")
+    # Step 3: Commit changes
+    print("\n3️⃣  Committing changes...")
     if not handler.git_commit(bug_id, bug_title, commit_description):
         return None
     
-    # Step 3: Push to branch
-    print("\n3️⃣  Pushing to remote...")
+    # Step 4: Push to branch
+    print("\n4️⃣  Pushing to remote...")
     if not handler.git_push(branch_name):
         return None
     
-    # Step 4: Generate PR description
-    print("\n4️⃣  Generating PR description...")
-    changes_summary = f"Fixed validation issues in {len(files_changed)} file(s)."
+    # Step 5: Generate PR description
+    print("\n5️⃣  Generating PR description...")
+    changes_summary = f"Fixed validation issues in {len(modified_files)} file(s)."
     pr_description = handler.generate_pr_description(
         bug_id, 
         bug_title, 
@@ -324,14 +362,14 @@ def push_and_create_pr(repo_path, repo_url, bug_id, bug_title, branch_name,
         relevant_files
     )
     
-    # Step 5: Create PR locally
-    print("\n5️⃣  Preparing PR information...")
+    # Step 6: Create PR locally
+    print("\n6️⃣  Preparing PR information...")
     pr_title = f"fix: {bug_title} (#{bug_id})"
     if not handler.create_pr_locally(branch_name, pr_title, pr_description, bug_id):
         return None
     
-    # Step 6: Link to Azure DevOps
-    print("\n6️⃣  Linking to Azure DevOps...")
+    # Step 7: Link to Azure DevOps
+    print("\n7️⃣  Linking to Azure DevOps...")
     repo_name = repo_url.split('/')[-1].replace('.git', '')
     pr_url = f"https://github.com/{repo_url.split('/')[-2]}/{repo_name}/pull/new/{branch_name}"
     
@@ -340,8 +378,8 @@ def push_and_create_pr(repo_path, repo_url, bug_id, bug_title, branch_name,
     except Exception as e:
         print(f"⚠️  Could not link to Azure DevOps: {str(e)}")
     
-    # Step 7: Generate report
-    print("\n7️⃣  Generating report...")
+    # Step 8: Generate report
+    print("\n8️⃣  Generating report...")
     handler.generate_pr_report(bug_id, bug_title, repo_url, branch_name)
     
     return handler.pr_info
